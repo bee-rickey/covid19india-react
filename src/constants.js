@@ -1,3 +1,5 @@
+import {hi, te, gu, ta, bn} from 'date-fns/locale/';
+
 export const STATE_ROW_STATISTICS = [
   'confirmed',
   'active',
@@ -315,4 +317,18 @@ export const STATE_POPULATIONS = {
   Uttarakhand: 11141000,
   'West Bengal': 96906000,
   Total: 1332900000,
+};
+
+export const LOCALE_SHORTHANDS = {
+  english: null,
+  hindi: hi,
+  telugu: te,
+  kannada: null,
+  gujarati: gu,
+  marathi: null,
+  tamil: ta,
+  bengali: bn,
+  punjabi: null,
+  malayalam: null,
+  odiya: null,
 };
