@@ -7,6 +7,7 @@ import * as Icon from 'react-feather';
 const Essentials = (props) => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [currentAddress, setCurrentAddress] = useState(null);
+  const [currentState, setCurrentState] = useState(null);
 
   const getLocation = () => {
     navigator.geolocation.getCurrentPosition((position) => {
@@ -27,10 +28,12 @@ const Essentials = (props) => {
         )
         .then((response) => {
           setCurrentAddress(response.data.locality);
+          setCurrentState(response.data.principalSubdivision);
         });
     } catch (err) {
       console.log(err);
       setCurrentAddress('Error fetching name of your location');
+      setCurrentState(null);
     }
   };
 
@@ -81,20 +84,23 @@ const Essentials = (props) => {
 
       {currentAddress && (
         <div className="address fadeInUp">
-          <h3>{currentAddress}</h3>
+          <h3>{currentAddress + ', ' + currentState}</h3>
 
           <Icon.XCircle
             size={16}
             onClick={() => {
               setCurrentLocation(null);
               setCurrentAddress(null);
+              setCurrentState(null);
             }}
           />
         </div>
       )}
 
       <div className="Search">
-        {currentAddress && <KnnResults userLocation={currentLocation} />}
+        {currentAddress && (
+          <KnnResults userLocation={currentLocation} userState={currentState} />
+        )}
       </div>
     </div>
   );

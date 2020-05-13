@@ -5,7 +5,6 @@ import produce from 'immer';
 import L from 'leaflet';
 import * as Knn from 'leaflet-knn';
 import React, {useState, useEffect, useCallback} from 'react';
-import 'leaflet/dist/leaflet.css';
 import {ExternalLink, Phone} from 'react-feather';
 import {useEffectOnce} from 'react-use';
 
@@ -17,10 +16,28 @@ function othersFilter(feature) {
   return !feature.properties.priority;
 }
 
+
+function getDistance(p1, p2){ //p1 and p2 => [lat1, long1], [lat2, long2]
+  const phi1 = p1[0] * Math.PI/180;
+  const phi2 = p2[0] * Math.PI/180;
+  const dLambda = (p2[1]-p1[1]) * Math.PI/180;
+  const R = 6371e3;
+  const d = Math.acos( Math.sin(phi1)*Math.sin(phi2) + Math.cos(phi1)*Math.cos(phi2) * Math.cos(dLambda) ) * R;
+  return Number((d/1000).toFixed(2));
+}
+
+// function panFilter(feature){
+//   const city = feature.properties.city
+//   const state = feature.properties.state
+//   return (city.includes("PAN") && ( state.includes("India") || state.includes(userState) ));
+// }
+
+
 function KnnResults({userLocation}) {
   const [geoData, setGeoData] = useState([]);
   const [results, setResults] = useState();
   const [categories, setCategories] = useState([]);
+  const userState= "Kerala"
 
   useEffectOnce(() => {
     getJSON();
@@ -38,14 +55,16 @@ function KnnResults({userLocation}) {
         console.log(error);
       });
   }, []);
-
+  
   useEffect(() => {
     let medKnn;
     let restKnn;
+    let distance;
+    let panKnn;
 
     const hK = 5; // K nearest hospitals/labs wrt user location
     const rK = 100; // K nearest essentials wrt user location
-    const rad = 10 * 1000; // Max distance of the K points, in meters
+    const rad = 10 * 1000; // Max distance of the K points, in meters : aim to be  ~(avg city radius)
 
     if (userLocation) {
       medKnn = new Knn(L.geoJSON(geoData, {filter: medFilter})).nearestLayer(
@@ -55,6 +74,7 @@ function KnnResults({userLocation}) {
       restKnn = new Knn(
         L.geoJSON(geoData, {filter: othersFilter})
       ).nearestLayer([userLocation[1], userLocation[0]], rK, rad);
+      panKnn = geoData.features.filter(feat => (feat.properties.city.includes("PAN") && ( feat.properties.state.includes("India") || feat.properties.state.includes(userState) )));
     }
 
     const result = {
@@ -66,6 +86,7 @@ function KnnResults({userLocation}) {
     if (medKnn) {
       let i = 0;
       for (i = 0; i < medKnn.length; i++) {
+        distance = getDistance(userLocation, medKnn[i].layer.feature.geometry.coordinates.reverse())
         result.features.push({
           type: 'Feature',
           geometry: {
@@ -79,7 +100,8 @@ function KnnResults({userLocation}) {
             phone: medKnn[i].layer.feature.properties.phone,
             contact: medKnn[i].layer.feature.properties.contact,
             icon: medKnn[i].layer.feature.properties.icon,
-            id: i + 1,
+            recordid: medKnn[i].layer.feature.properties.recordid,
+            dist: distance,
           },
         });
       }
@@ -88,6 +110,7 @@ function KnnResults({userLocation}) {
     if (restKnn) {
       let j = 0;
       for (j = 0; j < restKnn.length; j++) {
+        distance = getDistance(userLocation, restKnn[j].layer.feature.geometry.coordinates.reverse())
         result.features.push({
           type: 'Feature',
           geometry: {
@@ -101,9 +124,17 @@ function KnnResults({userLocation}) {
             phone: restKnn[j].layer.feature.properties.phone,
             contact: restKnn[j].layer.feature.properties.contact,
             icon: restKnn[j].layer.feature.properties.icon,
-            id: j + 100,
+            recordid: restKnn[j].layer.feature.properties.recordid,
+            dist: distance,
           },
         });
+      }
+    }
+
+    if (panKnn) {
+      let k = 0;
+      for (k = 0; k < panKnn.length; k++) {
+        result.features.push(panKnn[k]);
       }
     }
 
@@ -171,13 +202,17 @@ function KnnResults({userLocation}) {
               .includes(feature.properties.icon);
           })
           .map((result) => (
-            <div key={result.properties.id} className="essential-result">
+            <div key={result.properties.recordid} className="essential-result">
               <div className="result-top">
                 <div className="result-top-left">
                   <div className="result-name">{result.properties.name}</div>
                   <div className="result-location">
                     {result.properties.addr}
                   </div>
+                  {result.properties.dist && (
+                  <div className="result-distance">
+                    {result.properties.dist+" km away"}
+                  </div>)}
                 </div>
                 <a
                   className="result-category"
