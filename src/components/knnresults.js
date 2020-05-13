@@ -16,14 +16,18 @@ function othersFilter(feature) {
   return !feature.properties.priority;
 }
 
-
-function getDistance(p1, p2){ //p1 and p2 => [lat1, long1], [lat2, long2]
-  const phi1 = p1[0] * Math.PI/180;
-  const phi2 = p2[0] * Math.PI/180;
-  const dLambda = (p2[1]-p1[1]) * Math.PI/180;
+function getDistance(p1, p2) {
+  // p1 and p2 => [lat1, long1], [lat2, long2]
+  const phi1 = (p1[0] * Math.PI) / 180;
+  const phi2 = (p2[0] * Math.PI) / 180;
+  const dLambda = ((p2[1] - p1[1]) * Math.PI) / 180;
   const R = 6371e3;
-  const d = Math.acos( Math.sin(phi1)*Math.sin(phi2) + Math.cos(phi1)*Math.cos(phi2) * Math.cos(dLambda) ) * R;
-  return Number((d/1000).toFixed(2));
+  const d =
+    Math.acos(
+      Math.sin(phi1) * Math.sin(phi2) +
+        Math.cos(phi1) * Math.cos(phi2) * Math.cos(dLambda)
+    ) * R;
+  return Number((d / 1000).toFixed(2));
 }
 
 // function panFilter(feature){
@@ -32,12 +36,10 @@ function getDistance(p1, p2){ //p1 and p2 => [lat1, long1], [lat2, long2]
 //   return (city.includes("PAN") && ( state.includes("India") || state.includes(userState) ));
 // }
 
-
-function KnnResults({userLocation}) {
+function KnnResults({userLocation, userState}) {
   const [geoData, setGeoData] = useState([]);
   const [results, setResults] = useState();
   const [categories, setCategories] = useState([]);
-  const userState= "Kerala"
 
   useEffectOnce(() => {
     getJSON();
@@ -46,7 +48,7 @@ function KnnResults({userLocation}) {
   const getJSON = useCallback(() => {
     axios
       .get(
-        'https://raw.githubusercontent.com/aswaathb/covid19india-react/80922c70bb451cda94cce1e809e54fa72754f05c/newResources/geoResources.json'
+        'https://raw.githubusercontent.com/aswaathb/covid19india-react/publish/newResources/geoResources.json'
       )
       .then((response) => {
         setGeoData(response.data);
@@ -55,11 +57,10 @@ function KnnResults({userLocation}) {
         console.log(error);
       });
   }, []);
-  
+
   useEffect(() => {
     let medKnn;
     let restKnn;
-    let distance;
     let panKnn;
 
     const hK = 5; // K nearest hospitals/labs wrt user location
@@ -74,7 +75,13 @@ function KnnResults({userLocation}) {
       restKnn = new Knn(
         L.geoJSON(geoData, {filter: othersFilter})
       ).nearestLayer([userLocation[1], userLocation[0]], rK, rad);
-      panKnn = geoData.features.filter(feat => (feat.properties.city.includes("PAN") && ( feat.properties.state.includes("India") || feat.properties.state.includes(userState) )));
+      panKnn = geoData?.features?.filter(
+        (feat) =>
+          feat.properties.state === 'PAN India' ||
+          (feat.properties.state.includes('PAN') &&
+            feat.properties.state.includes(userState))
+      );
+      console.log('PAN', panKnn);
     }
 
     const result = {
@@ -86,7 +93,6 @@ function KnnResults({userLocation}) {
     if (medKnn) {
       let i = 0;
       for (i = 0; i < medKnn.length; i++) {
-        distance = getDistance(userLocation, medKnn[i].layer.feature.geometry.coordinates.reverse())
         result.features.push({
           type: 'Feature',
           geometry: {
@@ -101,7 +107,10 @@ function KnnResults({userLocation}) {
             contact: medKnn[i].layer.feature.properties.contact,
             icon: medKnn[i].layer.feature.properties.icon,
             recordid: medKnn[i].layer.feature.properties.recordid,
-            dist: distance,
+            dist: getDistance(
+              userLocation,
+              medKnn[i].layer.feature.geometry.coordinates.reverse()
+            ),
           },
         });
       }
@@ -110,7 +119,6 @@ function KnnResults({userLocation}) {
     if (restKnn) {
       let j = 0;
       for (j = 0; j < restKnn.length; j++) {
-        distance = getDistance(userLocation, restKnn[j].layer.feature.geometry.coordinates.reverse())
         result.features.push({
           type: 'Feature',
           geometry: {
@@ -125,7 +133,10 @@ function KnnResults({userLocation}) {
             contact: restKnn[j].layer.feature.properties.contact,
             icon: restKnn[j].layer.feature.properties.icon,
             recordid: restKnn[j].layer.feature.properties.recordid,
-            dist: distance,
+            dist: getDistance(
+              userLocation,
+              restKnn[j].layer.feature.geometry.coordinates.reverse()
+            ),
           },
         });
       }
@@ -139,7 +150,7 @@ function KnnResults({userLocation}) {
     }
 
     setResults(result);
-  }, [geoData, userLocation]);
+  }, [geoData, userLocation, userState]);
 
   const toggleFilter = (categoryName, newIsSelected) => {
     setCategories(
@@ -201,8 +212,11 @@ function KnnResults({userLocation}) {
               )
               .includes(feature.properties.icon);
           })
-          .map((result) => (
-            <div key={result.properties.recordid} className="essential-result">
+          .map((result, i) => (
+            <div
+              key={result.properties.recordid ? result.properties.recordid : i}
+              className="essential-result"
+            >
               <div className="result-top">
                 <div className="result-top-left">
                   <div className="result-name">{result.properties.name}</div>
@@ -210,9 +224,10 @@ function KnnResults({userLocation}) {
                     {result.properties.addr}
                   </div>
                   {result.properties.dist && (
-                  <div className="result-distance">
-                    {result.properties.dist+" km away"}
-                  </div>)}
+                    <div className="result-distance">
+                      {result.properties.dist + ' km away'}
+                    </div>
+                  )}
                 </div>
                 <a
                   className="result-category"
